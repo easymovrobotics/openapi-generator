@@ -7,10 +7,11 @@ pub type {{camelcase name suffix}} = {{>data_type required="true"}};
 {{~else}}
     {{~#if (eq type "object")~}}
         {{~#if properties~}}
+            #[allow(clippy::derive_partial_eq_without_eq)]
             #[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
             pub struct {{camelcase name suffix}} {
             {{~#each properties}}
-                #[serde(rename = "{{snakecase @key}}")]
+                #[serde(rename = "{{@key}}")]
                 {{~#if (has ../../required @key)}}
                 pub {{sanitize (snakecase @key)}}: {{>data_type name=(camelcase ../name @key) required="true"}},
                 {{~else}}
@@ -24,13 +25,14 @@ pub type {{camelcase name suffix}} = {{>data_type required="true"}};
             }
 
             {{~#if (has this.[x-tags] "multipart")}}
+
             impl TryFrom<HashMap<String, Vec<u8>>> for {{camelcase name suffix}} {
                 type Error = &'static str;
 
                 fn try_from(mut data: HashMap<String, Vec<u8>>) -> Result<Self, Self::Error> {
                     Ok({{camelcase name suffix}} {
                         {{~#each properties}}
-                            {{sanitize (snakecase @key)}}: data.remove("{{snakecase @key}}").ok_or_else(|| "missing field {{sanitize (snakecase @key)}}")?,
+                            {{sanitize (snakecase @key)}}: data.remove("{{snakecase @key}}").ok_or("missing field {{sanitize (snakecase @key)}}")?,
                         {{~/each}}
                     })
                 }
@@ -39,7 +41,11 @@ pub type {{camelcase name suffix}} = {{>data_type required="true"}};
 
         {{~else~}}
             {{~#if additionalProperties}}
-                pub type {{camelcase name suffix}} = serde_json::Map<String, serde_json::Value>;
+                {{~#if (eq additionalProperties.type "string")}}
+                    pub type {{camelcase name suffix}} = HashMap<String, String>;
+                {{~else~}}
+                    pub type {{camelcase name suffix}} = serde_json::Map<String, serde_json::Value>;
+                {{~/if}}
             {{~/if}}
         {{~/if}}
     {{~else~}}

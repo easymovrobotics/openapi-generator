@@ -1,185 +1,218 @@
 {{~#if operationId}}
 pub mod {{snakecase operationId}} {
-    use super::components;
-    use serde::{Deserialize, Serialize};
-    {{~#if (has parameters "in" "header")~}}
-    use actix_web::error::ErrorBadRequest;
-    use actix_web::{dev, FromRequest, HttpRequest};
-    use futures::future::{err, ok, Ready};
-    {{~/if}}
+use crate::components;
+use serde::{Deserialize, Serialize};
+{{~#if (has parameters "in" "header")~}}
+use actix_web::error::ErrorBadRequest;
+use actix_web::{dev, FromRequest, HttpRequest};
+use futures::future::{err, ok, Ready};
+{{~/if}}
 
-    /// Parameters for {{snakecase operationId}} operation
-    {{~#if parameters}}
-    #[derive(Deserialize, Debug)]
-    pub struct Parameters {
+{{~#each parameters}}
+{{>schema name=name schema}}
+{{~/each}}
+
+/// Parameters for {{snakecase operationId}} operation
+{{~#if parameters}}
+#[derive(Deserialize, Debug)]
+pub struct Parameters {
+{{~#each parameters}}
+{{#if description}}/// {{description}}{{/if}}
+pub {{snakecase name}}: {{>data_type name=name required=required schema}},
+{{~/each}}
+}
+{{~else}}
+pub struct Parameters;
+{{~/if}}
+
+impl Parameters {
+{{~#unless parameters}}
+#[allow(clippy::new_without_default)]
+{{~/unless}}
+pub fn new(
+{{~#if (has parameters "in" "query")~}}query: Query,{{~/if}}
+{{~#if (has parameters "in" "path")~}}path: Path,{{~/if}}
+{{~#if (has parameters "in" "header")~}}header: Header,{{~/if}}
+) -> Self {
+Self {
+{{~#each parameters}}
+{{snakecase name}}:
+{{~#if (eq in "query")}} query.{{snakecase name}}, {{~/if}}
+{{~#if (eq in "path")}} path.{{snakecase name}}, {{~/if}}
+{{~#if (eq in "header")}} header.{{snakecase name}}, {{~/if}}
+{{~/each}}
+}
+}
+
+{{#if (has parameters "in" "query")~}}
+pub fn query(&self) -> Query {
+Query {
+{{~#each parameters}}
+{{~#if (eq in "query")}}{{snakecase name}}: self.{{snakecase name}}.clone(),{{~/if}}
+{{~/each}}
+}
+}
+{{~/if}}
+
+{{#if (has parameters "in" "path")~}}
+pub fn path(&self) -> Path {
+Path {
+{{~#each parameters}}
+{{~#if (eq in "path")}}{{snakecase name}}: self.{{snakecase name}}.clone(),{{~/if}}
+{{~/each}}
+}
+}
+{{~/if}}
+
+{{#if (has parameters "in" "header")~}}
+pub fn header(&self) -> Header {
+Header {
+{{~#each parameters}}
+{{~#if (eq in "header")}}{{snakecase name}}: self.{{snakecase name}}.clone(),{{~/if}}
+{{~/each}}
+}
+}
+{{~/if}}
+}
+
+{{~#if (has parameters "in" "query")~}}
+{{>parameter_type type="query"}}
+{{~/if}}
+
+{{~#if (has parameters "in" "path")~}}
+{{>parameter_type type="path"}}
+{{~/if}}
+
+{{~#if (has parameters "in" "header")~}}
+{{>parameter_type type="header"}}
+
+impl FromRequest for Header {
+type Error = actix_web::Error;
+type Future = Ready<Result<Self, Self::Error>>;
+    type Config = ();
+
+    fn from_request(req: &HttpRequest, _: &mut dev::Payload) -> Self::Future {
+    let headers = req.headers();
+    ok(Self {
     {{~#each parameters}}
-        {{#if description}}/// {{description}}{{/if}}
-        pub {{snakecase name}}: {{>data_type name=name required=required schema}},
+    {{~#if (eq in "header")}}{{snakecase name}}: match headers.get("{{snakecase name}}") {
+    Some(value) => match value.to_str() {
+    Ok(value) => value.to_string(),
+    Err(_) => return err(ErrorBadRequest("{{snakecase name}} should be a string")),
+    },
+    None => return err(ErrorBadRequest("missing {{snakecase name}} in header")),
+    },{{~/if}}
     {{~/each}}
+    })
     }
-    {{~else}}
-    pub struct Parameters;
-    {{~/if}}
-
-    impl Parameters {
-        {{~#unless parameters}}
-        #[allow(clippy::new_without_default)]
-        {{~/unless}}
-        pub fn new(
-            {{~#if (has parameters "in" "query")~}}query: Query,{{~/if}}
-            {{~#if (has parameters "in" "path")~}}path: Path,{{~/if}}
-            {{~#if (has parameters "in" "header")~}}header: Header,{{~/if}}
-        ) -> Self {
-            Self {
-            {{~#each parameters}}
-                {{snakecase name}}:
-                    {{~#if (eq in "query")}} query.{{snakecase name}}, {{~/if}}
-                    {{~#if (eq in "path")}} path.{{snakecase name}}, {{~/if}}
-                    {{~#if (eq in "header")}} header.{{snakecase name}}, {{~/if}}
-            {{~/each}}
-            }
-        }
-
-        {{#if (has parameters "in" "query")~}}
-        pub fn query(&self) -> Query {
-            Query {
-            {{~#each parameters}}
-                {{~#if (eq in "query")}}{{snakecase name}}: self.{{snakecase name}}.clone(),{{~/if}}
-            {{~/each}}
-            }
-        }
-        {{~/if}}
-
-        {{#if (has parameters "in" "path")~}}
-        pub fn path(&self) -> Path {
-            Path {
-            {{~#each parameters}}
-                {{~#if (eq in "path")}}{{snakecase name}}: self.{{snakecase name}}.clone(),{{~/if}}
-            {{~/each}}
-            }
-        }
-        {{~/if}}
-
-        {{#if (has parameters "in" "header")~}}
-        pub fn header(&self) -> Header {
-            Header {
-            {{~#each parameters}}
-                {{~#if (eq in "header")}}{{snakecase name}}: self.{{snakecase name}}.clone(),{{~/if}}
-            {{~/each}}
-            }
-        }
-        {{~/if}}
-    }
-
-    {{~#if (has parameters "in" "query")~}}
-    {{>parameter_type type="query"}}
-    {{~/if}}
-
-    {{~#if (has parameters "in" "path")~}}
-    {{>parameter_type type="path"}}
-    {{~/if}}
-
-    {{~#if (has parameters "in" "header")~}}
-    {{>parameter_type type="header"}}
-
-    impl FromRequest for Header {
-        type Error = actix_web::Error;
-        type Future = Ready<Result<Self, Self::Error>>;
-        type Config = ();
-
-        fn from_request(req: &HttpRequest, _: &mut dev::Payload) -> Self::Future {
-            let headers = req.headers();
-            ok(Self {
-            {{~#each parameters}}
-                {{~#if (eq in "header")}}{{snakecase name}}: match headers.get("{{snakecase name}}") {
-                Some(value) => match value.to_str() {
-                    Ok(value) => value.to_string(),
-                    Err(_) => return err(ErrorBadRequest("{{snakecase name}} should be a string")),
-                },
-                None => return err(ErrorBadRequest("missing {{snakecase name}} in header")),
-            },{{~/if}}
-            {{~/each}}
-            })
-        }
     }
     {{~/if}}
 
     {{#unless noBody}}
-        {{~#if requestBody}}
-            {{~#with requestBody.content.[application/json]}}{{~>schema name="Body" description=../description schema}}{{~/with}}
-            {{~#with requestBody.content.[multipart/form-data]}}{{~>schema name="Body" description=../description schema}}{{~/with}}
-        {{~else~}}
-            #[derive(Deserialize)]
-            pub struct Body;
-        {{~/if}}
+    {{~#if requestBody}}
+    {{~#with requestBody.content.[application/json]}}{{~>schema name="Body" description=../description
+    schema}}{{~/with}}
+    {{~#with requestBody.content.[multipart/form-data]}}{{~>schema name="Body" description=../description
+    schema}}{{~/with}}
+    {{~else~}}
+    #[derive(Deserialize)]
+    pub struct Body;
+    {{~/if}}
     {{~/unless}}
 
+
+    #[allow(clippy::large_enum_variant)]
     #[derive(Debug)]
     pub enum Response<T> {
-    {{~#each responses}}
+        {{~#each responses}}
         {{~#if (not (eq @key "default"))}}
         {{camelcase "Response" @key}}({{camelcase "Response" @key}}),
         {{~/if}}
-    {{~/each}}
+        {{~/each}}
         Unspecified(T),
-    }
+        }
 
-    {{#each responses}}
+        {{#each responses}}
         {{~#if (not (eq @key "default"))}}
-            {{~#with content.[image/png]}}{{~>schema name=(camelcase "Response" @../key) description=../description schema}}{{~/with}}
-            {{~#with content.[image/jpeg]}}{{~>schema name=(camelcase "Response" @../key) description=../description schema}}{{~/with}}
-            {{~#with content.[text/plain]}}{{~>schema name=(camelcase "Response" @../key) description=../description schema}}{{~/with}}
-            {{~#with content.[application/json]}}{{~>schema name=(camelcase "Response" @../key) description=../description schema}}{{~/with}}
+        {{~#with content.[image/png]}}{{~>schema name=(camelcase "Response" @../key) description=../description
+        schema}}{{~/with}}
+        {{~#with content.[image/jpeg]}}{{~>schema name=(camelcase "Response" @../key) description=../description
+        schema}}{{~/with}}
+        {{~#with content.[application/bag]}}{{~>schema name=(camelcase "Response" @../key) description=../description
+        schema}}{{~/with}}
+        {{~#with content.[application/pbstream]}}{{~>schema name=(camelcase "Response" @../key)
+        description=../description
+        schema}}{{~/with}}
+        {{~#with content.[image/x-portable-graymap]}}{{~>schema name=(camelcase "Response" @../key)
+        description=../description
+        schema}}{{~/with}}
+        {{~#with content.[text/plain]}}{{~>schema name=(camelcase "Response" @../key) description=../description
+        schema}}{{~/with}}
+        {{~#with content.[application/json]}}{{~>schema name=(camelcase "Response" @../key) description=../description
+        schema}}{{~/with}}
         {{~/if }}
         {{~#if (not content)}}
-            {{~>schema name=(camelcase "Response" @key) description=description}}
+        {{~>schema name=(camelcase "Response" @key) description=description}}
         {{~/if }}
-    {{~/each}}
+        {{~/each}}
 
-    #[derive(Debug)]
-    pub enum Success {
-    {{~#each responses}}
+        #[allow(clippy::large_enum_variant)]
+        #[derive(Debug)]
+        pub enum Success {
+        {{~#each responses}}
         {{~#if (is_http_code_success @key)}}
         {{camelcase "Status" @key}}({{camelcase "Status" @key}}),
         {{~/if}}
-    {{~/each}}
-    }
-
-    #[derive(Debug)]
-    pub enum Error<T: std::fmt::Debug> {
-    {{~#each responses}}
-        {{~#if (not (or (eq @key "default") (is_http_code_success @key)))}}
-        {{camelcase "Status" @key}}({{camelcase "Status" @key}}),
-        {{~/if}}
-    {{~/each}}
-        Unknown(T),
-    }
-
-    impl<T: std::fmt::Debug + std::fmt::Display> std::fmt::Display for Error<T> {
-        fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-            match self {
-                {{~#each responses}}
-                    {{~#if (not (or (eq @key "default") (is_http_code_success @key)))}}
-                    Self::{{camelcase "Status" @key}}(status) => write!(f, "{{snakecase "Status"}} {{@key}}: {:?}", status),
-                    {{~/if}}
-                {{~/each}}
-                Self::Unknown(response) => write!(f, "Unspecified response: `{}`", response),
-            }
+        {{~/each}}
         }
-    }
 
-    impl<T: std::fmt::Debug + std::fmt::Display> std::error::Error for Error<T> {}
+        #[derive(Debug)]
+        pub enum Error<T: std::fmt::Debug> {
+            {{~#each responses}}
+            {{~#if (not (or (eq @key "default") (is_http_code_success @key)))}}
+            {{camelcase "Status" @key}}({{camelcase "Status" @key}}),
+            {{~/if}}
+            {{~/each}}
+            Unknown(T),
+            }
 
-    {{#each responses}}
-        {{~#if (not (eq @key "default"))}}
-            {{~#with content.[image/png]}}{{~>schema name=(camelcase "Status" @../key) description=../description schema}}{{~/with}}
-            {{~#with content.[image/jpeg]}}{{~>schema name=(camelcase "Status" @../key) description=../description schema}}{{~/with}}
-            {{~#with content.[text/plain]}}{{~>schema name=(camelcase "Status" @../key) description=../description schema}}{{~/with}}
-            {{~#with content.[application/json]}}{{~>schema name=(camelcase "Status" @../key) description=../description schema}}{{~/with}}
-        {{~/if }}
-        {{~#if (not content)}}
-            {{~>schema name=(camelcase "Status" @key) description=description}}
-        {{~/if }}
-    {{~/each}}
-}
-{{/if}}
+            impl<T: std::fmt::Debug + std::fmt::Display> std::fmt::Display for Error<T> {
+                    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                        match self {
+                        {{~#each responses}}
+                        {{~#if (not (or (eq @key "default") (is_http_code_success @key)))}}
+                        Self::{{camelcase "Status" @key}}(status) => write!(f, "{{snakecase "Status"}} {{@key}}: {:?}",
+                        status),
+                        {{~/if}}
+                        {{~/each}}
+                        Self::Unknown(response) => write!(f, "Unspecified response: `{}`", response),
+                        }
+                        }
+                        }
+
+                        impl<T: std::fmt::Debug + std::fmt::Display> std::error::Error for Error<T> {}
+
+                                {{#each responses}}
+                                {{~#if (not (eq @key "default"))}}
+                                {{~#with content.[image/png]}}{{~>schema name=(camelcase "Status" @../key)
+                                description=../description schema}}{{~/with}}
+                                {{~#with content.[image/jpeg]}}{{~>schema name=(camelcase "Status" @../key)
+                                description=../description schema}}{{~/with}}
+                                {{~#with content.[application/bag]}}{{~>schema name=(camelcase "Status" @../key)
+                                description=../description schema}}{{~/with}}
+                                {{~#with content.[application/pbstream]}}{{~>schema name=(camelcase "Status" @../key)
+                                description=../description schema}}{{~/with}}
+                                {{~#with content.[image/x-portable-graymap]}}{{~>schema name=(camelcase "Status"
+                                @../key)
+                                description=../description schema}}{{~/with}}
+                                {{~#with content.[text/plain]}}{{~>schema name=(camelcase "Status" @../key)
+                                description=../description schema}}{{~/with}}
+                                {{~#with content.[application/json]}}{{~>schema name=(camelcase "Status" @../key)
+                                description=../description schema}}{{~/with}}
+                                {{~/if }}
+                                {{~#if (not content)}}
+                                {{~>schema name=(camelcase "Status" @key) description=description}}
+                                {{~/if }}
+                                {{~/each}}
+                                }
+                                {{/if}}
