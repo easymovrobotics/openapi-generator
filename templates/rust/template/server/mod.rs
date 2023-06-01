@@ -1,6 +1,7 @@
 #![allow(clippy::unit_arg, clippy::redundant_clone)]
 
 {{~#each paths as |specPaths specName|}}
+#[cfg(feature = "{{snakecase specName "server"}}")]
 pub mod {{snakecase specName}} {
     use crate::models::{{snakecase specName "models"}}::*;
     use actix_multipart::Multipart;

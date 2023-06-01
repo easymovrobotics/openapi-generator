@@ -42,7 +42,7 @@ impl std::fmt::Display for ReqwestError {
 }
 
 {{~#each paths as |specPaths specName|}}
-
+    #[cfg(feature = "{{snakecase @key "client"}}")]
     pub mod {{specName}} {
         use crate::client::ReqwestError;
         use std::time::Duration;
