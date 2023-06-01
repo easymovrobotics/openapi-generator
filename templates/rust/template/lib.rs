@@ -1,15 +1,28 @@
 #![allow(dead_code, unused_variables, unused_imports)]
 
-#[cfg(feature = "client")]
+#[cfg(any(
+{{~#each paths as |_ specName|}}
+    feature = "{{snakecase specName "client"}}",
+{{~/each}}
+))]
 pub mod client;
 #[cfg(feature = "example")]
 pub mod example;
 pub mod models;
 pub mod openapi_serialization;
+#[cfg(any(
+    {{~#each paths as |_ specName|}}
+        feature = "{{snakecase specName "server"}}",
+    {{~/each}}
+    ))]
 pub mod security;
-#[cfg(feature = "server")]
+#[cfg(any(
+    {{~#each paths as |_ specName|}}
+        feature = "{{snakecase specName "server"}}",
+    {{~/each}}
+    ))]
 pub mod server;
 
 pub use models::*;
 
-pub const VERSION: &str = "{{info.version}}";
+pub const VERSION: &str = "{{version}}";

@@ -4,24 +4,43 @@ use crate::helpers::{
 };
 use anyhow::{anyhow, Context, Result};
 use handlebars::Handlebars;
+use heck::SnakeCase;
+use openapiv3::OpenAPI;
 use std::{
+    collections::HashMap,
     fs::File,
     path::{Path, PathBuf},
 };
 
 pub struct OpenApiGenerator {
     handlebars: Handlebars,
-    specs: serde_yaml::Value,
+    specs: HashMap<String, OpenAPI>,
     template_path: PathBuf,
+    package_name: String,
+    version: String,
 }
 
 impl OpenApiGenerator {
-    pub fn new<T: AsRef<Path>, U: AsRef<Path>>(specs_path: T, template_path: U) -> Result<Self> {
+    pub fn new<T: AsRef<Path>, U: AsRef<Path>>(
+        specs_path: &[T],
+        template_path: U,
+        package_name: &str,
+        version: &str,
+    ) -> Result<Self> {
+        let mut specs = HashMap::new();
+        for spec_path in specs_path {
+            let (title, spec) = Self::parse_specification(&spec_path.as_ref())?;
+            specs.insert(title, spec);
+        }
+
         let mut openapi_generator = Self {
             handlebars: Handlebars::new(),
-            specs: Self::parse_specification(&specs_path.as_ref())?,
+            specs,
             template_path: template_path.as_ref().join("template"),
+            package_name: package_name.to_string(),
+            version: version.to_string(),
         };
+
         let partials_path = template_path.as_ref().join("partials");
         openapi_generator
             .register_partials(&partials_path)
@@ -30,26 +49,20 @@ impl OpenApiGenerator {
                 partials_path.display()
             ))?;
         openapi_generator.register_helpers();
-        let specs = openapi_generator
-            .specs
-            .as_mapping_mut()
-            .context("specification is not a mapping")?;
-        specs.insert(
-            serde_yaml::Value::String("openapi_generator_version".to_string()),
-            serde_yaml::Value::String(env!("CARGO_PKG_VERSION").to_string()),
-        );
         Ok(openapi_generator)
     }
 
-    fn parse_specification(specs_path: &Path) -> Result<serde_yaml::Value> {
+    fn parse_specification(specs_path: &Path) -> Result<(String, OpenAPI)> {
         let specs_string = std::fs::read_to_string(&specs_path).context(format!(
             "Cannot read specification file `{}`",
             specs_path.display()
         ))?;
-        serde_yaml::from_str(&specs_string).context(format!(
+        let open_api: OpenAPI = serde_yaml::from_str(&specs_string).context(format!(
             "Cannot parse specification file `{}`",
             specs_path.display()
-        ))
+        ))?;
+        let title = open_api.info.title.to_snake_case();
+        Ok((title, open_api))
     }
 
     fn register_helpers(&mut self) {
@@ -95,6 +108,67 @@ impl OpenApiGenerator {
         Ok(())
     }
 
+    fn get_paths(&self) -> Result<serde_yaml::Value> {
+        let mut paths = serde_yaml::Mapping::new();
+        for (title, spec) in &self.specs {
+            paths.insert(
+                serde_yaml::Value::String(title.to_string()),
+                serde_yaml::to_value(&spec.paths.paths)?,
+            );
+        }
+        Ok(serde_yaml::Value::Mapping(paths))
+    }
+
+    fn get_schemas(&self) -> Result<serde_yaml::Value> {
+        let mut schemas = serde_yaml::Mapping::new();
+        for (_title, spec) in &self.specs {
+            for (name, schema) in &spec
+                .components
+                .as_ref()
+                .map(|components| components.schemas.clone())
+                .unwrap_or_default()
+            {
+                schemas.insert(
+                    serde_yaml::Value::String(name.to_string()),
+                    serde_yaml::to_value(schema)?,
+                );
+            }
+        }
+        Ok(serde_yaml::Value::Mapping(schemas))
+    }
+
+    pub fn get_template_data(&self) -> Result<serde_yaml::Value> {
+        let mut root = serde_yaml::Mapping::new();
+        root.insert(
+            serde_yaml::Value::String("paths".to_string()),
+            self.get_paths()?,
+        );
+        let mut components = serde_yaml::Mapping::new();
+        components.insert(
+            serde_yaml::Value::String("schemas".to_string()),
+            self.get_schemas()?,
+        );
+        root.insert(
+            serde_yaml::Value::String("components".to_string()),
+            serde_yaml::Value::Mapping(components),
+        );
+        root.insert(
+            serde_yaml::Value::String("openapi_generator_version".to_string()),
+            serde_yaml::Value::String(env!("CARGO_PKG_VERSION").to_string()),
+        );
+        root.insert(
+            serde_yaml::Value::String("package_name".to_string()),
+            serde_yaml::Value::String(self.package_name.to_string()),
+        );
+        root.insert(
+            serde_yaml::Value::String("version".to_string()),
+            serde_yaml::Value::String(self.version.to_string()),
+        );
+        let template_data = serde_yaml::Value::Mapping(root);
+        log::info!("{}", serde_yaml::to_string(&template_data)?);
+        Ok(template_data)
+    }
+
     pub fn render<T: AsRef<Path>>(&mut self, output_path: T) -> Result<()> {
         self.render_from_path(output_path.as_ref(), &PathBuf::new())
     }
@@ -122,7 +196,7 @@ impl OpenApiGenerator {
                     let output_file_path = output_path.join(path).join(entry.file_name());
                     let mut output_file = File::create(&output_file_path)?;
                     self.handlebars
-                        .render_to_write(template_key, &self.specs, &mut output_file)
+                        .render_to_write(template_key, &self.get_template_data()?, &mut output_file)
                         .context(format!(
                             "Failed to render template `{}` at `{}`",
                             template_key,
