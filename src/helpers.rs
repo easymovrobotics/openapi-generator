@@ -27,27 +27,38 @@ macro_rules! case_helper {
     };
 }
 
-case_helper!(mixedcase, to_mixed_case);
-case_helper!(camelcase, to_camel_case);
+case_helper!(mixedcase, to_lower_camel_case);
+case_helper!(camelcase, to_upper_camel_case);
 case_helper!(snakecase, to_snake_case);
 case_helper!(shoutysnakecase, to_shouty_snake_case);
 handlebars_helper!(component_path: |ref_path: str| parse_component_path(ref_path));
+handlebars_helper!(component_name: |ref_path: str| parse_component_name(ref_path));
 handlebars_helper!(sanitize: |word: str| apply_sanitize(word));
 handlebars_helper!(json: |data: Json| apply_json(data));
 handlebars_helper!(is_http_code_success: |http_status: str| http_status.starts_with('1') || http_status.starts_with('2') || http_status.starts_with('3'));
 
 pub(crate) fn parse_component_path(ref_path: &str) -> String {
-    use heck::CamelCase;
+    use heck::ToUpperCamelCase;
     let mut path = Vec::new();
     let mut pointer = ref_path.parse::<JsonPointer<_, _>>().unwrap();
     while let Some(segment) = pointer.pop() {
         path.push(segment);
     }
     if let Some(name) = path.first_mut() {
-        *name = name.to_camel_case()
+        *name = name.to_upper_camel_case()
     }
     path.reverse();
     path.join("::")
+}
+
+pub(crate) fn parse_component_name(ref_path: &str) -> String {
+    use heck::ToUpperCamelCase;
+    ref_path
+        .parse::<JsonPointer<_, _>>()
+        .unwrap()
+        .pop()
+        .map(|name| name.to_upper_camel_case())
+        .unwrap_or_default()
 }
 
 const KEYWORDS: &[&str] = &[
@@ -60,7 +71,7 @@ const KEYWORDS: &[&str] = &[
 
 pub(crate) fn apply_sanitize(word: &str) -> String {
     if KEYWORDS.iter().any(|&keyword| word == keyword) {
-        format!("r#{}", word)
+        format!("r#{word}")
     } else {
         word.to_string()
     }

@@ -141,7 +141,11 @@ impl Dereferencer {
                 }
                 _ => (),
             },
-            SchemaKind::OneOf { .. } => todo!(),
+            SchemaKind::OneOf { one_of } => {
+                for schema in one_of {
+                    self.deref_schema(base_url, schema);
+                }
+            }
             SchemaKind::AllOf { .. } => todo!(),
             SchemaKind::AnyOf { .. } => todo!(),
             SchemaKind::Not { .. } => todo!(),
