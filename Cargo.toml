@@ -9,6 +9,9 @@ description = "Code generator for OpenAPI specifications"
 keywords = ["openapi", "swagger", "generator"]
 categories = ["template-engine", "web-programming"]
 
+[features]
+codegen = []
+
 [dependencies]
 anyhow = "1.0.34"
 handlebars = "2.0.2"
@@ -21,4 +24,5 @@ walkdir = "2.3.1"
 log = "0.4.11"
 structopt = "0.3.20"
 regex = "1.4.2"
-openapiv3 = "1.0.2" 
+openapiv3 = "1.0.2"
+url = "2.4.1"

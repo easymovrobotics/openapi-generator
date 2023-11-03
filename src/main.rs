@@ -1,8 +1,5 @@
-mod helpers;
-mod openapi_generator;
-
-use crate::openapi_generator::OpenApiGenerator;
 use anyhow::{Context, Result};
+use openapi_generator::OpenApiGenerator;
 use std::path::PathBuf;
 use structopt::StructOpt;
 
